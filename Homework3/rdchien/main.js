@@ -255,6 +255,7 @@ d3.csv("ds_salaries.csv").then(function (data) {
 
     var dimensions = ['experience_level', 'remote_ratio', 'company_size'];
 
+
     // y axis scales
     var yScales = {};
     dimensions.forEach(function (dimension) {
@@ -360,6 +361,76 @@ d3.csv("ds_salaries.csv").then(function (data) {
         .style("font-size", "18px")
         .style("font-weight", "bold")
         .text("Data Science Salary by Experience, Remote Ratio, and Company Size");
+
+    // brush function 
+    dimensions.forEach(function (dimension) {
+        var brush = d3.brushY()
+            .extent([[-8, 0], [8, height]]) 
+            .on("brush", function (event) {
+                brushed(event, dimension); 
+            })
+            .on("end", brushEnded);
+
+        svg.append("g")
+            .attr("class", "brush")
+            .attr("transform", `translate(${xScale(dimension)},0)`)
+            .call(brush);
+    });
+
+    function brushed(event, dimension) {
+        var selection = event.selection;
+        if (!selection) return;
+
+        svg.selectAll("path")
+            .style("display", function (d) {
+                var value = dimension;
+                var scale = yScales[dimension];
+                return (selection[0] <= scale(value) && scale(value) <= selection[1]) ? null : "none";
+            });
+    }
+
+    function brushEnded(event) {
+        // reset paths visibility if the brush is cleared
+        if (!event.selection) {
+            svg.selectAll("path").style("display", null);
+        }
+    }
+
+    // zoom
+    var zoom = d3.zoom()
+        .scaleExtent([0.5, 4]) 
+        .on("zoom", zoomed);
+
+    // apply the zoom to a rect covering the plot area
+    svg.append("rect")
+        .attr("class", "zoom")
+        .attr("width", width)
+        .attr("height", height)
+        .style("fill", "none")
+        .style("pointer-events", "all")
+        .attr('transform', 'translate(' + margin.left + ',' + margin.top + ')')
+        .call(zoom);
+
+    function zoomed(event) {
+        // update yScales based on the zoom transform for each dimension
+        dimensions.forEach(function (dimension) {
+            // Calculate the new domain based on the zoom level
+            var t = event.transform;
+            var newYScale = t.rescaleY(yScales[dimension].copy());
+            yScales[dimension].domain(newYScale.domain());
+
+            // update axes
+            svg.selectAll(`.axis-${dimension}`).call(d3.axisLeft(yScales[dimension]));
+        });
+
+        svg.selectAll("path")
+            .attr("d", d => drawPath(d));
+    }
+
+    function drawPath(d) {
+        return d3.line()(dimensions.map(p => [xScale, yScales[p](d[p])]));
+    }
+
 });
 
 // bar chart
